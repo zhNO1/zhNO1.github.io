@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <link rel="stylesheet" href="./css/index.css">
+</head>
+<style>
+    [v-cloak]{
+        display: none;
+    }
+    .list-complete-item {
+  transition: all 1s;
+  display: block;
+  margin-right: 10px;
+}
+.list-complete-enter, .list-complete-leave-to
+/* .list-complete-leave-active for below version 2.1.8 */ {
+  opacity: 0;
+  transform: translateX(30px);
+}
+.list-complete-leave-active {
+  position: absolute;
+}
+</style>
+<body>
+    <section class="todoapp" >
+        <header class="header">
+            <h1>todos</h1>
+            <input autofocus="autofocus" v-model.trim="inputTodo" @keyup.enter="addTodo" autocomplete="off" placeholder="你要干什么?" class="new-todo">
+        </header>
+        <section class="main">
+            <input type="checkbox" class="toggle-all">
+            <ul v-cloak class="todo-list">
+                <transition-group name="list-complete" tag="p">
+                            <li :key="item.id" class="todo list-complete-item" v-for="(item, index) in filterTodo" :class="{completed:item.completed,editing:item.isediting}">
+                    <div class="view">
+                        <input type="checkbox" v-model="item.completed" class="toggle">
+                        <label @dblclick="enterEdit(index)">{{item.content}}</label>
+                        <button class="destroy" @click="delTodo(item.id)"></button>
+                    </div>
+                    <input type="text" v-model="item.content" v-focus @blur="saveEdit(index)" class="edit">
+                </li>
+                </transition-group>
+            </ul>
+        </section>
+        <footer class="footer">
+            <span class="todo-count">
+                <strong>{{activeNum}}</strong> item{{activeNum>1?'s':''}} left
+            </span>
+            <ul class="filters">
+                <li>
+                    <a href="#/all" :class="{selected:filter=='All'}" @click="changeFilter('All')">All</a>
+                </li>
+                <li>
+                    <a href="#/active" :class="{selected:filter=='Active'}" @click="changeFilter('Active')">Active</a>
+                </li>
+                <li>
+                    <a href="#/completed" :class="{selected:filter=='Completed'}" @click="changeFilter('Completed')">Completed</a>
+                </li>
+            </ul>
+            <button class="clear-completed" style="display: none;" v-show="completedNum!=0" @click="delCompleted" >
+                Clear completed
+            </button>
+        </footer>
+    </section>
+    <!-- 作者信息 -->
+    <footer class="info">
+        <p>双击编辑待办事项</p>
+        <p>原作者
+            <a href="http://evanyou.me">Evan You</a>
+        </p>
+        <p>
+            <a href="http://todomvc.com">TodoMVC</a>的一部分</p>
+    </footer>
+</body>
+
+</html>
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+<script>
+    //注册一个自定义全局变量
+    Vue.directive('focus', {
+        //指令绑定的组件 状态改变时  会自动触发
+        update: function (el) {
+            //聚焦元素
+            el.focus();
+        }
+    })
+    let app = new Vue({
+        el: ".todoapp",
+        data: {
+            //输入的内容
+            inputTodo: '',
+            todoList: JSON.parse(window.localStorage.getItem('todo')) || [],
+            filter: 'All'//默认为全部
+        },
+        //事件
+        methods: {
+            //新增代办事项
+            addTodo() {
+                //判断是否为空
+                if (this.inputTodo == '') {
+                    alert("哥们写点东西呀");
+                    return;
+                }
+                //新增列表
+                this.todoList.push({
+                    content: this.inputTodo,
+                    completed: false,
+                    isediting: false,//是否为编辑状态
+                    id:Date.now()
+                })
+                //清空输入框
+                this.inputTodo = '';
+            },
+            //根据索引删除代办事项
+            delTodo(id) {
+               // this.todoList.splice(index, 1)
+                //找到id相等的那个元素删除即可
+                this.todoList.forEach((v,i)=>{
+                    if(v.id==id){
+                        this.todoList.splice(i,1)
+                    }
+                })
+            },
+            //进入编辑状态 
+            enterEdit(index) {
+                //排他
+                this.todoList.forEach(v => {
+                    v.isediting = false;
+                });
+                //根据索引修改编辑状态即可
+                this.todoList[index].isediting = true;
+            },
+            //保持编辑状态
+            saveEdit(index) {
+                //修改标记变量
+                this.todoList[index].isediting = !this.todoList[index].isediting
+            },
+            //修改筛选条件
+            changeFilter(filter) {
+                this.filter = filter;
+            },
+            //删除已完成的事件
+            delCompleted(){
+                //删除数组 从后往前删除
+                for (let i=this.todoList.length-1; i>=0; i--) {
+                     //如果已经成
+                     if(this.todoList[i].completed==true){
+                         //删除
+                       this.todoList.splice(i,1);
+                     }
+                }
+            }
+        },
+        //数据改变时候出发 要设置更深层次的必须设置deep:true
+        watch: {
+            todoList: {
+                handler: function (val, oldval) {
+                    //保存到缓存中
+                    window.localStorage.setItem('todo', JSON.stringify(val));
+                },
+                deep: true
+            }
+        },
+        //计算属性
+        computed: {
+            filterTodo(){
+                //全部
+                if(this.filter=="All"){
+                   // 不筛选直接返回
+                   return this.todoList;
+                }
+                //1.filter 筛选方法 高逼格 可读性低
+                //未完成和已完成
+                // return this.todoList.filter(v=>{
+                //     return this.filter=="Active"?!v.completed:v.completed;
+                // })
+                //2.forEach 方法
+                let temArr=[];
+                this.todoList.forEach(v=>{
+                    //添加未完成的
+                    if(this.filter=="Active"){
+                         if(v.completed==false)  temArr.push(v);
+                    }else{
+                        //添加已完成的
+                        if(v.completed)  temArr.push(v);
+                    }
+                })
+                return temArr;
+            },
+            //未完成个数
+            activeNum(){
+              return this.todoList.filter(v=>{
+                   return !v.completed;
+               }).length
+            },
+            //已完成个数
+            completedNum(){
+               return this.todoList.filter(v=>{
+                   return v.completed
+               }).length
+            }
+
+        }
+    
+    })
+</script>
